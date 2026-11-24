@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GhostRiley2528 — Image & Video Upscaler</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='4' y='4' width='56' height='56' rx='16' fill='%23DBCDF0' stroke='%23BFA8E3' stroke-width='4'/%3E%3Ccircle cx='23' cy='24' r='5' fill='%23FAEDCB'/%3E%3Cpath d='M14 46l13-13a3 3 0 0 1 4.2 0L40 42l5-5a3 3 0 0 1 4.2 0L52 46H14z' fill='%23C9E4DE' stroke='%232A2436' stroke-width='3' stroke-linejoin='round'/%3E%3C/svg%3E" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -507,19 +508,22 @@
 
     const WEIGHT_MIRRORS = {
       'anime4k/cnn-2x-s': [
-        'https://cdn.jsdelivr.net/gh/sb2702/websr@main/weights/cnn-2x-s.json',
+        'https://cdn.jsdelivr.net/gh/sb2702/websr@main/weights/anime4k/cnn-2x-s.json',
+        'https://huggingface.co/katana-video/websr/resolve/main/weights/anime4k/cnn-2x-s.json',
         'https://katana.video/files/cnn-2x-sm-2d-animation.json',
-        'https://unpkg.com/@websr/websr@0.0.15/weights/cnn-2x-s.json'
+        'https://raw.githubusercontent.com/sb2702/websr/main/weights/anime4k/cnn-2x-s.json'
       ],
       'anime4k/cnn-2x-m': [
-        'https://cdn.jsdelivr.net/gh/sb2702/websr@main/weights/cnn-2x-m.json',
+        'https://cdn.jsdelivr.net/gh/sb2702/websr@main/weights/anime4k/cnn-2x-m.json',
+        'https://huggingface.co/katana-video/websr/resolve/main/weights/anime4k/cnn-2x-m.json',
         'https://katana.video/files/cnn-2x-md-2d-animation.json',
-        'https://unpkg.com/@websr/websr@0.0.15/weights/cnn-2x-m.json'
+        'https://raw.githubusercontent.com/sb2702/websr/main/weights/anime4k/cnn-2x-m.json'
       ],
       'anime4k/cnn-2x-l': [
-        'https://cdn.jsdelivr.net/gh/sb2702/websr@main/weights/cnn-2x-l.json',
+        'https://cdn.jsdelivr.net/gh/sb2702/websr@main/weights/anime4k/cnn-2x-l.json',
+        'https://huggingface.co/katana-video/websr/resolve/main/weights/anime4k/cnn-2x-l.json',
         'https://katana.video/files/cnn-2x-lg-2d-animation.json',
-        'https://unpkg.com/@websr/websr@0.0.15/weights/cnn-2x-l.json'
+        'https://raw.githubusercontent.com/sb2702/websr/main/weights/anime4k/cnn-2x-l.json'
       ]
     };
 
@@ -705,7 +709,7 @@
           if (!res.ok) continue;
 
           const json = await res.json();
-          if (json && Array.isArray(json.layers) && json.layers.length > 0) {
+          if (json && json.layers && typeof json.layers === 'object' && Object.keys(json.layers).length > 0) {
             state.weightsCache.set(networkName, json);
             return json;
           }
