@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GhostRiley2528 — Image & Video Upscaler</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            serif: ['Fraunces', 'Georgia', 'serif'],
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            pastelButter: '#FAEDCB',
+            pastelMint: '#C9E4DE',
+            pastelSky: '#C6DEF1',
+            pastelLavender: '#DBCDF0',
+            pastelRose: '#F2C6DE',
+            pastelPeach: '#F7D9C4',
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body {
+      background-color: #FBF9F5;
+      color: #2A2436;
+      transition: background-color 0.25s ease, color 0.25s ease;
+    }
+
+    html.dark body {
+      background-color: #2B2738;
+      color: #F6F3FC;
+    }
+
+    .pastel-top-strip {
+      height: 4px;
+      background: linear-gradient(90deg, #FAEDCB 0%, #C9E4DE 20%, #C6DEF1 40%, #DBCDF0 60%, #F2C6DE 80%, #F7D9C4 100%);
+    }
+
+    .checkerboard {
+      background-color: #F5F2FA;
+      background-image:
+        linear-gradient(45deg, #EAE3F2 25%, transparent 25%),
+        linear-gradient(-45deg, #EAE3F2 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #EAE3F2 75%),
+        linear-gradient(-45deg, transparent 75%, #EAE3F2 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+    }
+
+    html.dark .checkerboard {
+      background-color: #322D40;
+      background-image:
+        linear-gradient(45deg, #3D374E 25%, transparent 25%),
+        linear-gradient(-45deg, #3D374E 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #3D374E 75%),
+        linear-gradient(-45deg, transparent 75%, #3D374E 75%);
+    }
+
+    .compare-container {
+      position: relative;
+      overflow: hidden;
+      user-select: none;
+      touch-action: pan-y;
+      display: inline-block;
+    }
+
+    .compare-overlay {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      clip-path: inset(0 50% 0 0);
+      pointer-events: none;
+    }
+
+    .compare-overlay canvas {
+      width: 100% !important;
+      height: 100% !important;
+      max-width: none !important;
+      max-height: none !important;
+    }
+
+    .compare-handle {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      width: 3px;
+      background: linear-gradient(180deg, #F2C6DE, #DBCDF0, #C6DEF1);
+      box-shadow: 0 1px 6px rgba(42, 36, 54, 0.3);
+      cursor: ew-resize;
+      transform: translateX(-50%);
+      z-index: 20;
+    }
+
+    .compare-knob {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 38px;
+      height: 38px;
+      border-radius: 9999px;
+      background: #F2C6DE;
+      border: 2.5px solid #FFFFFF;
+      box-shadow: 0 4px 12px rgba(42, 36, 54, 0.22);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #2A2436;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-pastelRose selection:text-[#2A2436]">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-40 border-b border-[#E8E0D5] dark:border-[#474059] bg-[#FBF9F5]/95 dark:bg-[#2B2738]/95 backdrop-blur-md">
+    <div class="pastel-top-strip"></div>
+    <div class="max-w-6xl mx-auto px-3 sm:px-6 min-h-16 py-2 flex flex-wrap items-center justify-between gap-2 sm:gap-4">
+      <div class="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
+        <div class="flex items-center gap-1.5 shrink-0" aria-hidden="true">
+          <span class="w-3 h-3 rounded-full bg-pastelRose border border-[#D996BA]"></span>
+          <span class="w-3 h-3 rounded-full bg-pastelButter border border-[#D9C189]"></span>
+          <span class="w-3 h-3 rounded-full bg-pastelMint border border-[#93C4B9]"></span>
+        </div>
+        <div class="w-8 h-8 sm:w-9 sm:h-9 shrink-0 rounded-xl bg-pastelLavender text-[#2A2436] flex items-center justify-center border-2 border-[#BFA8E3]">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <span class="font-serif text-base sm:text-lg font-semibold tracking-tight text-[#2A2436] dark:text-[#F6F3FC] truncate">GhostRiley2528</span>
+      </div>
+
+      <div class="flex items-center gap-2 shrink-0">
+        <button id="theme-toggle-btn" type="button" aria-label="Toggle Light or Dark Theme" class="px-3 py-1.5 rounded-full text-xs font-semibold bg-pastelSky hover:bg-[#B2D3ED] border border-[#9AC2E3] text-[#1E3347] transition flex items-center gap-1.5 shrink-0">
+          <span id="theme-icon-sun" class="hidden">
+            <svg class="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+          </span>
+          <span id="theme-icon-moon">
+            <svg class="w-3.5 h-3.5 text-[#372A54]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+            </svg>
+          </span>
+          <span id="theme-label-text" class="hidden sm:inline">Dark</span>
+        </button>
+
+        <div id="gpu-status-pill" class="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-pastelMint border border-[#9ECAC0] text-[#1D3B35] max-w-[160px] sm:max-w-none">
+          <span id="gpu-status-dot" class="w-2 h-2 shrink-0 rounded-full bg-amber-500 animate-pulse"></span>
+          <span id="gpu-status-text" class="truncate">Checking GPU...</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <main class="flex-1 max-w-6xl w-full mx-auto px-3 sm:px-6 py-5 sm:py-8 flex flex-col gap-5 sm:gap-6 overflow-x-hidden">
+
+    <!-- Notice Banner -->
+    <div id="status-banner" class="hidden rounded-2xl border-2 px-4 py-3.5 text-sm flex flex-wrap sm:flex-nowrap items-start gap-3">
+      <svg id="banner-icon" class="w-5 h-5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <div class="flex-1 min-w-0">
+        <p id="banner-title" class="font-semibold break-words"></p>
+        <p id="banner-desc" class="text-xs opacity-90 mt-0.5 break-words"></p>
+      </div>
+      <button id="banner-close" class="text-xs font-semibold opacity-80 hover:opacity-100 px-2.5 py-1 rounded-lg bg-white/60 text-[#2A2436] shrink-0">Dismiss</button>
+    </div>
+
+    <!-- Settings Card -->
+    <section class="w-full rounded-2xl bg-white dark:bg-[#363147] border-2 border-[#E8E0D5] dark:border-[#4A4361] p-4 sm:p-6">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4 items-stretch">
+        <div class="min-w-0 rounded-xl bg-pastelButter/75 dark:bg-[#423D34] border border-[#E5D29E] dark:border-[#665E4D] p-2.5 flex flex-col justify-between">
+          <label for="model-select" class="block text-xs font-semibold text-[#4A3E1E] dark:text-pastelButter mb-1.5">Enhancement</label>
+          <select id="model-select" class="w-full min-w-0 rounded-lg bg-white dark:bg-[#2B2738] border border-[#DEC995] dark:border-[#665E4D] px-2.5 py-2 text-sm text-[#2A2436] dark:text-[#F6F3FC] focus:outline-none focus:border-[#B59B5C] transition">
+            <option value="anime4k/cnn-2x-s">Light &amp; Fast (cnn-2x-s)</option>
+            <option value="anime4k/cnn-2x-m" selected>Balanced Detail (cnn-2x-m)</option>
+            <option value="anime4k/cnn-2x-l">Crisp Edges (cnn-2x-l)</option>
+          </select>
+        </div>
+
+        <div class="min-w-0 rounded-xl bg-pastelSky/75 dark:bg-[#323D4A] border border-[#A5C9E6] dark:border-[#4F6278] p-2.5 flex flex-col justify-between">
+          <label for="scale-select" class="block text-xs font-semibold text-[#1E374D] dark:text-pastelSky mb-1.5">Output Size</label>
+          <select id="scale-select" class="w-full min-w-0 rounded-lg bg-white dark:bg-[#2B2738] border border-[#9AC2E3] dark:border-[#4F6278] px-2.5 py-2 text-sm text-[#2A2436] dark:text-[#F6F3FC] focus:outline-none focus:border-[#6FA4D1] transition">
+            <option value="2x" selected>2× Upscale</option>
+            <option value="4x">4× Dual-Pass</option>
+            <option value="1080p">1080p (1920w)</option>
+            <option value="1440p">1440p (2560w)</option>
+            <option value="4k">4K (3840w)</option>
+            <option value="custom">Custom Width × Height...</option>
+          </select>
+        </div>
+
+        <div class="min-w-0 rounded-xl bg-pastelPeach/75 dark:bg-[#453833] border border-[#E6BFA5] dark:border-[#6E564C] p-2.5 flex flex-col justify-between">
+          <label for="bitrate-select" class="block text-xs font-semibold text-[#4D301D] dark:text-pastelPeach mb-1.5">Video Quality</label>
+          <select id="bitrate-select" class="w-full min-w-0 rounded-lg bg-white dark:bg-[#2B2738] border border-[#E5B89A] dark:border-[#6E564C] px-2.5 py-2 text-sm text-[#2A2436] dark:text-[#F6F3FC] focus:outline-none focus:border-[#CF946E] transition">
+            <option value="4000000">Standard — 4 Mbps</option>
+            <option value="8000000" selected>High — 8 Mbps</option>
+            <option value="15000000">Maximum — 15 Mbps</option>
+          </select>
+        </div>
+
+        <div class="min-w-0 rounded-xl bg-pastelLavender/85 dark:bg-[#413A54] border border-[#C3AFE6] dark:border-[#635782] px-3.5 py-2.5 flex flex-col justify-center">
+          <span class="text-[10px] uppercase tracking-wider text-[#3B2D59] dark:text-pastelLavender font-bold">Renderer</span>
+          <span id="pipeline-label" class="text-xs font-mono font-medium text-[#2A2436] dark:text-[#F6F3FC] mt-0.5 truncate">Preparing GPU...</span>
+        </div>
+      </div>
+
+      <!-- Fluid Action Bar Inside Settings Card -->
+      <div class="mt-3.5 pt-3.5 border-t border-[#ECE5DA] dark:border-[#474059] flex flex-wrap items-center justify-end gap-2.5">
+        <button id="reprocess-btn" disabled class="flex-1 sm:flex-initial min-w-[110px] rounded-xl bg-pastelLavender hover:bg-[#C9B6EB] disabled:bg-[#EFEBF5] dark:disabled:bg-[#3F3952] disabled:text-[#9D95AD] dark:disabled:text-[#8E85A3] disabled:cursor-not-allowed text-[#2A2436] font-semibold text-sm px-5 py-2.5 border border-[#B8A2E0] disabled:border-transparent transition flex items-center justify-center gap-2">
+          <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span>Run</span>
+        </button>
+        <button id="cancel-btn" class="hidden flex-1 sm:flex-initial min-w-[100px] rounded-xl bg-pastelRose hover:bg-[#E8B0CF] text-[#3B1D2E] font-semibold text-sm px-4 py-2.5 border border-[#DBA1C1] transition text-center">
+          Cancel
+        </button>
+        <button id="reset-btn" class="hidden flex-1 sm:flex-initial min-w-[100px] rounded-xl bg-pastelRose/75 hover:bg-pastelRose text-[#3B1D2E] font-semibold text-sm px-4 py-2.5 border border-[#DBA1C1] transition text-center">
+          Clear
+        </button>
+      </div>
+
+      <!-- Custom Dimensions Row -->
+      <div id="custom-dims-row" class="hidden mt-3.5 pt-3.5 border-t border-[#ECE5DA] dark:border-[#474059] flex flex-wrap items-center gap-2.5 sm:gap-3 text-xs">
+        <span class="px-2.5 py-1 rounded-lg bg-pastelSky/80 text-[#1E374D] font-semibold shrink-0">Custom Size (px):</span>
+        <div class="flex items-center gap-2 flex-wrap">
+          <input id="custom-width" type="number" min="32" max="7680" step="2" value="1920" placeholder="Width" class="w-24 max-w-full rounded-lg bg-[#FAF8FC] dark:bg-[#2B2738] border border-[#9AC2E3] dark:border-[#4F6278] px-2.5 py-1.5 font-mono text-[#2A2436] dark:text-[#F6F3FC] focus:outline-none focus:border-[#6FA4D1]" />
+          <span class="text-[#8E869E] dark:text-[#B8AFC9] font-mono">×</span>
+          <input id="custom-height" type="number" min="32" max="4320" step="2" value="1080" placeholder="Height" class="w-24 max-w-full rounded-lg bg-[#FAF8FC] dark:bg-[#2B2738] border border-[#9AC2E3] dark:border-[#4F6278] px-2.5 py-1.5 font-mono text-[#2A2436] dark:text-[#F6F3FC] focus:outline-none focus:border-[#6FA4D1]" />
+        </div>
+        <label class="inline-flex items-center gap-2 text-[#3B334B] dark:text-[#E2DCF0] cursor-pointer select-none">
+          <input id="lock-aspect" type="checkbox" checked class="rounded border-[#CFC7DB] text-[#8E77BD] focus:ring-[#8E77BD]" />
+          <span>Keep Aspect Ratio</span>
+        </label>
+      </div>
+    </section>
+
+    <!-- Upload Dropzone -->
+    <section id="upload-zone" class="w-full flex-1 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#D3C4E8] dark:border-[#60557A] hover:border-[#9AC2E3] dark:hover:border-pastelSky bg-white dark:bg-[#363147] transition-all p-6 sm:p-12 text-center cursor-pointer min-h-[280px] sm:min-h-[340px]">
+      <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp,video/mp4,video/webm" class="hidden" />
+
+      <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-pastelRose border-2 border-[#E0A1C3] flex items-center justify-center text-[#3B1D2E] mb-4 shrink-0">
+        <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.85">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+        </svg>
+      </div>
+
+      <h2 class="font-serif text-xl sm:text-2xl font-semibold text-[#2A2436] dark:text-[#F6F3FC] tracking-tight">Drop an image or video here</h2>
+      <p class="text-sm text-[#635B73] dark:text-[#D0C8E0] max-w-sm mt-1.5">
+        PNG, JPG, WebP, MP4, or WebM. Everything runs locally on your computer.
+      </p>
+
+      <div class="mt-6 w-full sm:w-auto flex flex-wrap items-center justify-center gap-2.5">
+        <button id="browse-btn" type="button" class="w-full sm:w-auto rounded-xl bg-pastelPeach hover:bg-[#F2C7AA] text-[#3D2516] font-semibold text-sm px-6 py-2.5 border border-[#E0B192] transition">
+          Choose File
+        </button>
+      </div>
+    </section>
+
+    <!-- Active Workspace -->
+    <section id="studio-workspace" class="hidden w-full flex-col gap-5">
+
+      <!-- File Info & Download Strip -->
+      <div class="w-full rounded-2xl bg-white dark:bg-[#363147] border-2 border-[#E8E0D5] dark:border-[#4A4361] p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 flex-1 min-w-0">
+          <div class="min-w-0 px-3 py-2 rounded-xl bg-pastelButter/80 border border-[#E3CF9B] text-[#3D3319]">
+            <span class="text-[10px] uppercase tracking-wider font-bold block">File</span>
+            <span id="meta-filename" class="text-xs font-semibold truncate block">—</span>
+          </div>
+          <div class="min-w-0 px-3 py-2 rounded-xl bg-pastelSky/80 border border-[#A5C9E6] text-[#1C344A]">
+            <span class="text-[10px] uppercase tracking-wider font-bold block">Dimensions</span>
+            <span id="meta-resolution" class="text-xs font-mono font-semibold truncate block">—</span>
+          </div>
+          <div class="min-w-0 px-3 py-2 rounded-xl bg-pastelLavender/80 border border-[#C3AFE6] text-[#34274F]">
+            <span class="text-[10px] uppercase tracking-wider font-bold block">Status</span>
+            <span id="meta-perf" class="text-xs font-mono font-semibold truncate block">Ready</span>
+          </div>
+        </div>
+
+        <div class="flex items-center shrink-0">
+          <a id="download-btn" class="hidden w-full md:w-auto justify-center rounded-xl bg-pastelMint hover:bg-[#B3D9D0] text-[#1A3832] font-semibold text-sm px-5 py-2.5 border-2 border-[#98C7BC] transition items-center gap-2 cursor-pointer">
+            <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            <span id="download-label">Download</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Video Progress Card -->
+      <div id="video-progress-card" class="hidden w-full rounded-2xl bg-white dark:bg-[#363147] border-2 border-[#DFD2F2] dark:border-[#5D517D] p-4 sm:p-5">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <span class="w-2.5 h-2.5 shrink-0 rounded-full bg-pastelRose border border-[#C985AA] animate-ping"></span>
+            <span id="progress-status-text" class="text-sm font-semibold text-[#2A2436] dark:text-[#F6F3FC] truncate">Processing Frames...</span>
+          </div>
+          <span id="progress-percent" class="text-sm font-mono font-bold px-2.5 py-0.5 rounded-full bg-pastelLavender text-[#2A2436] shrink-0">0%</span>
+        </div>
+
+        <div class="w-full h-3 rounded-full bg-[#F3F0F7] dark:bg-[#2B2738] overflow-hidden border border-[#E0D6EB] dark:border-[#4A4361]">
+          <div id="progress-bar-fill" class="h-full bg-gradient-to-r from-pastelButter via-pastelMint via-pastelSky via-pastelLavender via-pastelRose to-pastelPeach transition-all duration-150" style="width: 0%"></div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-1.5 sm:gap-2 mt-3 text-xs font-mono text-[#635B73] dark:text-[#D0C8E0]">
+          <div>Frames: <span id="stat-frames" class="text-[#2A2436] dark:text-[#F6F3FC] font-semibold">0</span></div>
+          <div class="sm:text-center">Rate: <span id="stat-fps" class="text-[#2A2436] dark:text-[#F6F3FC] font-semibold">0.0 fps</span></div>
+          <div class="sm:text-right">Remaining: <span id="stat-eta" class="text-[#2A2436] dark:text-[#F6F3FC] font-semibold">--s</span></div>
+        </div>
+      </div>
+
+      <!-- Image Comparison Viewport -->
+      <div id="image-viewport" class="hidden w-full rounded-2xl bg-white dark:bg-[#363147] border-2 border-[#E8E0D5] dark:border-[#4A4361] p-3.5 sm:p-5 flex flex-col gap-3.5">
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <span class="flex flex-wrap items-center gap-2">
+            <span id="baseline-badge" class="px-3 py-1 rounded-full bg-pastelButter text-[#423618] font-semibold border border-[#DEC995]">Left: Standard</span>
+            <span class="px-3 py-1 rounded-full bg-pastelRose text-[#421D31] border border-[#E0A1C3] font-semibold">Right: Enhanced</span>
+          </span>
+          <div class="flex flex-wrap items-center gap-2">
+            <button id="baseline-toggle-btn" type="button" class="px-3 py-1 rounded-full bg-pastelSky hover:bg-[#B2D3ED] text-[#1D354A] border border-[#9AC2E3] font-mono text-[11px] font-medium transition">
+              Baseline: Smooth
+            </button>
+            <button id="zoom-toggle-btn" type="button" class="px-3 py-1 rounded-full bg-pastelPeach hover:bg-[#F2C7AA] text-[#402616] border border-[#E0B192] font-mono text-[11px] font-medium transition">
+              Zoom: Fit
+            </button>
+            <span class="hidden md:inline text-[#7D758C] dark:text-[#C5BDD4]">Drag slider to compare</span>
+          </div>
+        </div>
+
+        <div id="image-scroll-frame" class="w-full overflow-auto max-h-[72vh] rounded-xl border border-[#E5DEC9] dark:border-[#4A4361] flex items-center justify-center bg-[#F6F3FA] dark:bg-[#262232]">
+          <div id="compare-box" class="compare-container checkerboard mx-auto max-w-full">
+            <canvas id="upscaled-image-canvas" class="block max-w-full max-h-[68vh] w-auto h-auto"></canvas>
+
+            <div id="compare-overlay" class="compare-overlay">
+              <canvas id="original-image-canvas" class="block"></canvas>
+            </div>
+
+            <div id="compare-handle" class="compare-handle">
+              <div class="compare-knob">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M8 9l-3 3 3 3m8-6l3 3-3 3" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Video Viewport -->
+      <div id="video-viewport" class="hidden w-full rounded-2xl bg-white dark:bg-[#363147] border-2 border-[#E8E0D5] dark:border-[#4A4361] p-3.5 sm:p-5 flex flex-col gap-3.5">
+        <div class="flex items-center justify-between text-xs">
+          <span id="video-stage-badge" class="px-3 py-1 rounded-full bg-pastelMint text-[#1C3B35] border border-[#9ECAC0] font-semibold">
+            Preview
+          </span>
+        </div>
+
+        <div class="w-full checkerboard rounded-xl border border-[#E5DEC9] dark:border-[#4A4361] overflow-hidden flex items-center justify-center min-h-[240px] sm:min-h-[300px]">
+          <canvas id="video-live-canvas" class="block max-w-full max-h-[65vh] w-auto h-auto"></canvas>
+          <video id="video-result-player" controls playsinline loop class="hidden max-w-full max-h-[65vh] w-auto h-auto"></video>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-[#E8E0D5] dark:border-[#474059] py-4 px-3 sm:px-6 text-xs text-[#7D758C] dark:text-[#C5BDD4]">
+    <div class="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-2">
+      <span class="font-serif text-sm text-[#3B334B] dark:text-[#E8E2F5]">GhostRiley2528</span>
+      <div class="flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-pastelButter"></span>
+        <span class="w-2 h-2 rounded-full bg-pastelMint"></span>
+        <span class="w-2 h-2 rounded-full bg-pastelSky"></span>
+        <span class="w-2 h-2 rounded-full bg-pastelLavender"></span>
+        <span class="w-2 h-2 rounded-full bg-pastelRose"></span>
+        <span class="w-2 h-2 rounded-full bg-pastelPeach"></span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Application Logic -->
+  <script type="module">
+    // =========================================================================
+    // 0. LIGHT / DARK THEME TOGGLE (Defaults to Light Pastel Mode)
+    // =========================================================================
+    const themeToggleBtn = document.getElementById('theme-toggle-btn');
+    const themeIconSun = document.getElementById('theme-icon-sun');
+    const themeIconMoon = document.getElementById('theme-icon-moon');
+    const themeLabelText = document.getElementById('theme-label-text');
+
+    function syncThemeUI() {
+      const isDark = document.documentElement.classList.contains('dark');
+      if (isDark) {
+        themeIconSun.classList.remove('hidden');
+        themeIconMoon.classList.add('hidden');
+        themeLabelText.textContent = 'Light';
+      } else {
+        themeIconSun.classList.add('hidden');
+        themeIconMoon.classList.remove('hidden');
+        themeLabelText.textContent = 'Dark';
+      }
+    }
+
+    themeToggleBtn.addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark');
+      syncThemeUI();
+    });
+
+    syncThemeUI();
+
+    // =========================================================================
+    // 1. DOM REFERENCES & APPLICATION STATE
+    // =========================================================================
+    const ui = {
+      gpuPill: document.getElementById('gpu-status-pill'),
+      gpuDot: document.getElementById('gpu-status-dot'),
+      gpuText: document.getElementById('gpu-status-text'),
+      pipelineLabel: document.getElementById('pipeline-label'),
+
+      banner: document.getElementById('status-banner'),
+      bannerTitle: document.getElementById('banner-title'),
+      bannerDesc: document.getElementById('banner-desc'),
+      bannerClose: document.getElementById('banner-close'),
+
+      modelSelect: document.getElementById('model-select'),
+      scaleSelect: document.getElementById('scale-select'),
+      customDimsRow: document.getElementById('custom-dims-row'),
+      customWidth: document.getElementById('custom-width'),
+      customHeight: document.getElementById('custom-height'),
+      lockAspect: document.getElementById('lock-aspect'),
+      bitrateSelect: document.getElementById('bitrate-select'),
+      reprocessBtn: document.getElementById('reprocess-btn'),
+      cancelBtn: document.getElementById('cancel-btn'),
+      resetBtn: document.getElementById('reset-btn'),
+
+      uploadZone: document.getElementById('upload-zone'),
+      fileInput: document.getElementById('file-input'),
+      browseBtn: document.getElementById('browse-btn'),
+
+      studioWorkspace: document.getElementById('studio-workspace'),
+      metaFilename: document.getElementById('meta-filename'),
+      metaResolution: document.getElementById('meta-resolution'),
+      metaPerf: document.getElementById('meta-perf'),
+      downloadBtn: document.getElementById('download-btn'),
+      downloadLabel: document.getElementById('download-label'),
+
+      imageViewport: document.getElementById('image-viewport'),
+      imageScrollFrame: document.getElementById('image-scroll-frame'),
+      baselineBadge: document.getElementById('baseline-badge'),
+      baselineToggleBtn: document.getElementById('baseline-toggle-btn'),
+      zoomToggleBtn: document.getElementById('zoom-toggle-btn'),
+      compareBox: document.getElementById('compare-box'),
+      compareOverlay: document.getElementById('compare-overlay'),
+      compareHandle: document.getElementById('compare-handle'),
+      origImageCanvas: document.getElementById('original-image-canvas'),
+      upscaledImageCanvas: document.getElementById('upscaled-image-canvas'),
+
+      videoProgressCard: document.getElementById('video-progress-card'),
+      progressStatusText: document.getElementById('progress-status-text'),
+      progressPercent: document.getElementById('progress-percent'),
+      progressBarFill: document.getElementById('progress-bar-fill'),
+      statFrames: document.getElementById('stat-frames'),
+      statFps: document.getElementById('stat-fps'),
+      statEta: document.getElementById('stat-eta'),
+
+      videoViewport: document.getElementById('video-viewport'),
+      videoStageBadge: document.getElementById('video-stage-badge'),
+      videoLiveCanvas: document.getElementById('video-live-canvas'),
+      videoResultPlayer: document.getElementById('video-result-player'),
+    };
+
+    const state = {
+      WebSRClass: null,
+      webcodecsUtils: null,
+      gpuDevice: null,
+      websrCache: new Map(),
+      usingFallbackEngine: false,
+      weightsCache: new Map(),
+      fallbackScratchBuffer: null,
+      stage1Canvas: null,
+      stage2Canvas: null,
+      isActualSizeZoom: false,
+      smoothBaseline: true,
+      lastBitmap: null,
+      currentFile: null,
+      currentType: null,
+      sourceAspectRatio: 16 / 9,
+      isProcessing: false,
+      cancelRequested: false,
+      outputUrl: null,
+    };
+
+    const WEIGHT_MIRRORS = {
+      'anime4k/cnn-2x-s': [
+        'https://cdn.jsdelivr.net/gh/sb2702/websr@main/weights/cnn-2x-s.json',
+        'https://katana.video/files/cnn-2x-sm-2d-animation.json',
+        'https://unpkg.com/@websr/websr@0.0.15/weights/cnn-2x-s.json'
+      ],
+      'anime4k/cnn-2x-m': [
+        'https://cdn.jsdelivr.net/gh/sb2702/websr@main/weights/cnn-2x-m.json',
+        'https://katana.video/files/cnn-2x-md-2d-animation.json',
+        'https://unpkg.com/@websr/websr@0.0.15/weights/cnn-2x-m.json'
+      ],
+      'anime4k/cnn-2x-l': [
+        'https://cdn.jsdelivr.net/gh/sb2702/websr@main/weights/cnn-2x-l.json',
+        'https://katana.video/files/cnn-2x-lg-2d-animation.json',
+        'https://unpkg.com/@websr/websr@0.0.15/weights/cnn-2x-l.json'
+      ]
+    };
+
+    // =========================================================================
+    // 2. UI HELPERS & TARGET DIMENSION CALCULATION
+    // =========================================================================
+    function showBanner(type, title, desc) {
+      ui.banner.classList.remove(
+        'hidden',
+        'bg-pastelButter', 'border-[#DEC995]', 'text-[#423618]',
+        'bg-pastelRose', 'border-[#E0A1C3]', 'text-[#421D31]',
+        'bg-pastelSky', 'border-[#9AC2E3]', 'text-[#1D354A]'
+      );
+      if (type === 'warn') {
+        ui.banner.classList.add('bg-pastelButter', 'border-[#DEC995]', 'text-[#423618]');
+      } else if (type === 'error') {
+        ui.banner.classList.add('bg-pastelRose', 'border-[#E0A1C3]', 'text-[#421D31]');
+      } else {
+        ui.banner.classList.add('bg-pastelSky', 'border-[#9AC2E3]', 'text-[#1D354A]');
+      }
+      ui.bannerTitle.textContent = title;
+      ui.bannerDesc.textContent = desc;
+    }
+
+    ui.bannerClose.addEventListener('click', () => ui.banner.classList.add('hidden'));
+
+    function toEven(n) {
+      return Math.max(32, Math.round(n / 2) * 2);
+    }
+
+    function computeTargetDimensions(srcW, srcH) {
+      const mode = ui.scaleSelect.value;
+      const aspect = srcW / srcH;
+
+      if (mode === '2x') {
+        return { outW: toEven(srcW * 2), outH: toEven(srcH * 2), needsDualPass: false };
+      }
+      if (mode === '4x') {
+        return { outW: toEven(srcW * 4), outH: toEven(srcH * 4), needsDualPass: true };
+      }
+      if (mode === '1080p') {
+        const outW = 1920;
+        const outH = toEven(outW / aspect);
+        return { outW, outH, needsDualPass: outW > srcW * 2.2 };
+      }
+      if (mode === '1440p') {
+        const outW = 2560;
+        const outH = toEven(outW / aspect);
+        return { outW, outH, needsDualPass: outW > srcW * 2.2 };
+      }
+      if (mode === '4k') {
+        const outW = 3840;
+        const outH = toEven(outW / aspect);
+        return { outW, outH, needsDualPass: outW > srcW * 2.2 };
+      }
+
+      const rawW = parseInt(ui.customWidth.value, 10) || srcW * 2;
+      const rawH = parseInt(ui.customHeight.value, 10) || srcH * 2;
+      const outW = toEven(Math.min(7680, Math.max(32, rawW)));
+      const outH = toEven(Math.min(4320, Math.max(32, rawH)));
+      return { outW, outH, needsDualPass: outW > srcW * 2.2 || outH > srcH * 2.2 };
+    }
+
+    function updateCustomInputsFromAspect(changedAxis) {
+      if (!ui.lockAspect.checked) return;
+      const aspect = state.sourceAspectRatio || (16 / 9);
+      if (changedAxis === 'w') {
+        const w = parseInt(ui.customWidth.value, 10);
+        if (w > 0) ui.customHeight.value = toEven(w / aspect);
+      } else {
+        const h = parseInt(ui.customHeight.value, 10);
+        if (h > 0) ui.customWidth.value = toEven(h * aspect);
+      }
+    }
+
+    ui.scaleSelect.addEventListener('change', () => {
+      if (ui.scaleSelect.value === 'custom') {
+        ui.customDimsRow.classList.remove('hidden');
+        if (state.lastBitmap) {
+          ui.customWidth.value = toEven(state.lastBitmap.width * 2);
+          ui.customHeight.value = toEven(state.lastBitmap.height * 2);
+        }
+      } else {
+        ui.customDimsRow.classList.add('hidden');
+      }
+    });
+
+    ui.modelSelect.addEventListener('change', () => {
+      if (!state.usingFallbackEngine && state.gpuDevice) {
+        ui.pipelineLabel.textContent = `WebGPU AI (${ui.modelSelect.value.split('/')[1]})`;
+      }
+    });
+
+    ui.customWidth.addEventListener('input', () => updateCustomInputsFromAspect('w'));
+    ui.customHeight.addEventListener('input', () => updateCustomInputsFromAspect('h'));
+
+    function setDownloadArtifact(blob, filename) {
+      if (state.outputUrl) URL.revokeObjectURL(state.outputUrl);
+      state.outputUrl = URL.createObjectURL(blob);
+      ui.downloadBtn.href = state.outputUrl;
+      ui.downloadBtn.download = filename;
+      ui.downloadLabel.textContent = `Download ${filename.split('.').pop().toUpperCase()}`;
+      ui.downloadBtn.classList.remove('hidden');
+      ui.downloadBtn.classList.add('inline-flex');
+    }
+
+    function setProcessingLock(locked) {
+      state.isProcessing = locked;
+      ui.reprocessBtn.disabled = locked || !state.currentFile;
+      ui.modelSelect.disabled = locked;
+      ui.scaleSelect.disabled = locked;
+      ui.bitrateSelect.disabled = locked;
+      ui.customWidth.disabled = locked;
+      ui.customHeight.disabled = locked;
+      ui.lockAspect.disabled = locked;
+      ui.resetBtn.disabled = locked;
+      if (locked && state.currentType === 'video') {
+        ui.cancelBtn.classList.remove('hidden');
+      } else {
+        ui.cancelBtn.classList.add('hidden');
+      }
+    }
+
+    ui.cancelBtn.addEventListener('click', () => {
+      state.cancelRequested = true;
+      ui.progressStatusText.textContent = 'Canceling...';
+    });
+
+    // =========================================================================
+    // 3. WEBGPU + WEBSR ENGINE & LUMINANCE EDGE-SHARPENING FALLBACK
+    // =========================================================================
+    async function initEngine() {
+      try {
+        const websrMod = await import('https://esm.sh/@websr/websr@0.0.15');
+        state.WebSRClass = websrMod.default || websrMod.WebSR || websrMod;
+
+        if ('gpu' in navigator && state.WebSRClass?.initWebGPU) {
+          state.gpuDevice = await state.WebSRClass.initWebGPU();
+        }
+      } catch (err) {
+        console.warn('WebSR module load notice:', err);
+      }
+
+      for (const url of [
+        'https://esm.sh/webcodecs-utils',
+        'https://cdn.jsdelivr.net/npm/webcodecs-utils/+esm'
+      ]) {
+        try {
+          state.webcodecsUtils = await import(url);
+          if (state.webcodecsUtils?.SimpleDemuxer) break;
+        } catch (_) {}
+      }
+
+      if (state.gpuDevice && state.WebSRClass) {
+        ui.gpuDot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+        ui.gpuText.textContent = 'WebGPU Ready';
+        ui.pipelineLabel.textContent = `WebGPU (${ui.modelSelect.value.split('/')[1]})`;
+      } else {
+        state.usingFallbackEngine = true;
+        ui.gpuDot.className = 'w-2 h-2 rounded-full bg-amber-500';
+        ui.gpuText.textContent = 'Local 2D Mode';
+        ui.pipelineLabel.textContent = '2× Edge-Sharpen Fallback';
+        showBanner(
+          'warn',
+          'WebGPU Unavailable — Using Built-In 2× Edge Enhancer',
+          'Your browser does not expose WebGPU compute shaders, so the built-in edge-sharpening fallback is active.'
+        );
+      }
+    }
+
+    async function loadNetworkWeights(networkName) {
+      if (state.weightsCache.has(networkName)) {
+        return state.weightsCache.get(networkName);
+      }
+
+      const urls = WEIGHT_MIRRORS[networkName] || WEIGHT_MIRRORS['anime4k/cnn-2x-m'];
+      for (const url of urls) {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 5000);
+          const res = await fetch(url, { signal: controller.signal });
+          clearTimeout(timer);
+          if (!res.ok) continue;
+
+          const json = await res.json();
+          if (json && Array.isArray(json.layers) && json.layers.length > 0) {
+            state.weightsCache.set(networkName, json);
+            return json;
+          }
+        } catch (_) {}
+      }
+      return null;
+    }
+
+    async function prepareUpscalerForCanvas(targetCanvas, networkName) {
+      if (!state.gpuDevice || !state.WebSRClass || state.usingFallbackEngine) {
+        return null;
+      }
+
+      const outW = targetCanvas.width;
+      const outH = targetCanvas.height;
+      const cacheKey = `${networkName}_${outW}x${outH}`;
+
+      if (state.websrCache.has(cacheKey)) {
+        return state.websrCache.get(cacheKey);
+      }
+
+      const weights = await loadNetworkWeights(networkName);
+      if (!weights) {
+        state.usingFallbackEngine = true;
+        ui.gpuDot.className = 'w-2 h-2 rounded-full bg-amber-400';
+        ui.gpuText.textContent = 'Local 2D Mode';
+        ui.pipelineLabel.textContent = '2× Edge-Sharpen Fallback';
+        showBanner(
+          'info',
+          'Using Built-In 2× Edge Enhancer',
+          'External neural weights could not be reached from this environment, so the local edge-sharpening filter is being used.'
+        );
+        return null;
+      }
+
+      try {
+        const gpuCanvas = document.createElement('canvas');
+        gpuCanvas.width = outW;
+        gpuCanvas.height = outH;
+
+        const websr = new state.WebSRClass({
+          network_name: networkName,
+          weights,
+          gpu: state.gpuDevice,
+          canvas: gpuCanvas,
+        });
+
+        const entry = { websr, gpuCanvas };
+        state.websrCache.set(cacheKey, entry);
+        ui.pipelineLabel.textContent = `WebGPU AI (${networkName.split('/')[1]})`;
+        return entry;
+      } catch (err) {
+        console.warn('WebSR initialization error, falling back:', err);
+        state.usingFallbackEngine = true;
+        ui.pipelineLabel.textContent = '2× Edge-Sharpen Fallback';
+        return null;
+      }
+    }
+
+    async function runWebSRAndBlit(entry, sourceInput, displayCanvas) {
+      try {
+        await entry.websr.render(sourceInput);
+        const ctx = displayCanvas.getContext('2d');
+        ctx.clearRect(0, 0, displayCanvas.width, displayCanvas.height);
+        ctx.drawImage(entry.gpuCanvas, 0, 0, displayCanvas.width, displayCanvas.height);
+      } catch (err) {
+        console.warn('WebGPU shader execution fallback triggered:', err);
+        state.websrCache.clear();
+        state.usingFallbackEngine = true;
+        ui.pipelineLabel.textContent = '2× Edge-Sharpen Fallback';
+        renderFallback2x(sourceInput, displayCanvas);
+      }
+    }
+
+    function renderFallback2x(sourceInput, targetCanvas) {
+      const w = targetCanvas.width;
+      const h = targetCanvas.height;
+      const ctx = targetCanvas.getContext('2d', { willReadFrequently: true });
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(sourceInput, 0, 0, w, h);
+
+      const imgData = ctx.getImageData(0, 0, w, h);
+      const data = imgData.data;
+      const needed = data.length;
+
+      if (!state.fallbackScratchBuffer || state.fallbackScratchBuffer.length !== needed) {
+        state.fallbackScratchBuffer = new Uint8ClampedArray(needed);
+      }
+      const copy = state.fallbackScratchBuffer;
+      copy.set(data);
+
+      const rowStride = w * 4;
+      const strength = 0.42;
+      const threshold = 4;
+
+      for (let y = 1; y < h - 1; y++) {
+        const rowOffset = y * rowStride;
+        for (let x = 1; x < w - 1; x++) {
+          const i = rowOffset + x * 4;
+          const up = i - rowStride;
+          const down = i + rowStride;
+          const left = i - 4;
+          const right = i + 4;
+
+          const lumC = 0.299 * copy[i] + 0.587 * copy[i + 1] + 0.114 * copy[i + 2];
+          const lumAvg =
+            0.25 *
+            ((0.299 * copy[up] + 0.587 * copy[up + 1] + 0.114 * copy[up + 2]) +
+              (0.299 * copy[down] + 0.587 * copy[down + 1] + 0.114 * copy[down + 2]) +
+              (0.299 * copy[left] + 0.587 * copy[left + 1] + 0.114 * copy[left + 2]) +
+              (0.299 * copy[right] + 0.587 * copy[right + 1] + 0.114 * copy[right + 2]));
+
+          const delta = lumC - lumAvg;
+          if (Math.abs(delta) > threshold) {
+            const boost = delta * strength;
+            data[i] = Math.min(255, Math.max(0, copy[i] + boost));
+            data[i + 1] = Math.min(255, Math.max(0, copy[i + 1] + boost));
+            data[i + 2] = Math.min(255, Math.max(0, copy[i + 2] + boost));
+          }
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    async function upscaleFrameToTarget(sourceInput, srcW, srcH, displayCanvas, networkName, needsDualPass) {
+      const outW = displayCanvas.width;
+      const outH = displayCanvas.height;
+
+      if (!needsDualPass && outW === srcW * 2 && outH === srcH * 2) {
+        const websr1 = await prepareUpscalerForCanvas(displayCanvas, networkName);
+        if (websr1 && !state.usingFallbackEngine) {
+          await runWebSRAndBlit(websr1, sourceInput, displayCanvas);
+        } else {
+          renderFallback2x(sourceInput, displayCanvas);
+        }
+        return;
+      }
+
+      if (!state.stage1Canvas) state.stage1Canvas = document.createElement('canvas');
+      const pass1Canvas = state.stage1Canvas;
+      if (pass1Canvas.width !== srcW * 2 || pass1Canvas.height !== srcH * 2) {
+        pass1Canvas.width = srcW * 2;
+        pass1Canvas.height = srcH * 2;
+      }
+
+      const websr1 = await prepareUpscalerForCanvas(pass1Canvas, networkName);
+      if (websr1 && !state.usingFallbackEngine) {
+        await runWebSRAndBlit(websr1, sourceInput, pass1Canvas);
+      } else {
+        renderFallback2x(sourceInput, pass1Canvas);
+      }
+
+      let finalStageCanvas = pass1Canvas;
+
+      if (needsDualPass && srcW * 4 <= 4096 && srcH * 4 <= 4096) {
+        if (!state.stage2Canvas) state.stage2Canvas = document.createElement('canvas');
+        const pass2Canvas = state.stage2Canvas;
+        if (pass2Canvas.width !== srcW * 4 || pass2Canvas.height !== srcH * 4) {
+          pass2Canvas.width = srcW * 4;
+          pass2Canvas.height = srcH * 4;
+        }
+        const websr2 = await prepareUpscalerForCanvas(pass2Canvas, networkName);
+        if (websr2 && !state.usingFallbackEngine) {
+          await runWebSRAndBlit(websr2, pass1Canvas, pass2Canvas);
+        } else {
+          renderFallback2x(pass1Canvas, pass2Canvas);
+        }
+        finalStageCanvas = pass2Canvas;
+      }
+
+      const ctx = displayCanvas.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.clearRect(0, 0, outW, outH);
+      ctx.drawImage(finalStageCanvas, 0, 0, outW, outH);
+    }
+
+    // =========================================================================
+    // 4. IMAGE UPSCALING & BEFORE/AFTER COMPARISON SLIDER
+    // =========================================================================
+    function drawImageBaseline(bitmap, outW, outH) {
+      ui.origImageCanvas.width = outW;
+      ui.origImageCanvas.height = outH;
+      const origCtx = ui.origImageCanvas.getContext('2d');
+      origCtx.imageSmoothingEnabled = state.smoothBaseline;
+      if (state.smoothBaseline) origCtx.imageSmoothingQuality = 'high';
+      origCtx.clearRect(0, 0, outW, outH);
+      origCtx.drawImage(bitmap, 0, 0, outW, outH);
+    }
+
+    function applyImageZoomMode() {
+      if (state.isActualSizeZoom) {
+        ui.upscaledImageCanvas.classList.remove('max-w-full', 'max-h-[68vh]', 'w-auto', 'h-auto');
+        ui.zoomToggleBtn.textContent = 'Zoom: 100%';
+      } else {
+        ui.upscaledImageCanvas.classList.add('max-w-full', 'max-h-[68vh]', 'w-auto', 'h-auto');
+        ui.zoomToggleBtn.textContent = 'Zoom: Fit';
+      }
+    }
+
+    ui.zoomToggleBtn.addEventListener('click', () => {
+      state.isActualSizeZoom = !state.isActualSizeZoom;
+      applyImageZoomMode();
+    });
+
+    ui.baselineToggleBtn.addEventListener('click', () => {
+      state.smoothBaseline = !state.smoothBaseline;
+      ui.baselineToggleBtn.textContent = state.smoothBaseline ? 'Baseline: Smooth' : 'Baseline: Crisp Grid';
+      ui.baselineBadge.textContent = state.smoothBaseline ? 'Left: Standard' : 'Left: Nearest-Neighbor';
+      if (state.lastBitmap && ui.upscaledImageCanvas.width > 0) {
+        drawImageBaseline(state.lastBitmap, ui.upscaledImageCanvas.width, ui.upscaledImageCanvas.height);
+      }
+    });
+
+    function setSliderPosition(pct) {
+      const clamped = Math.max(0, Math.min(100, pct));
+      ui.compareOverlay.style.clipPath = `inset(0 ${100 - clamped}% 0 0)`;
+      ui.compareHandle.style.left = `${clamped}%`;
+    }
+
+    function initComparisonSlider() {
+      let dragging = false;
+
+      const updateFromEvent = (clientX) => {
+        const rect = ui.compareBox.getBoundingClientRect();
+        if (rect.width <= 0) return;
+        const pct = ((clientX - rect.left) / rect.width) * 100;
+        setSliderPosition(pct);
+      };
+
+      ui.compareBox.addEventListener('mousedown', (e) => {
+        dragging = true;
+        updateFromEvent(e.clientX);
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (dragging) updateFromEvent(e.clientX);
+      });
+      window.addEventListener('mouseup', () => {
+        dragging = false;
+      });
+
+      ui.compareBox.addEventListener('touchstart', (e) => {
+        dragging = true;
+        if (e.touches[0]) updateFromEvent(e.touches[0].clientX);
+      }, { passive: true });
+      window.addEventListener('touchmove', (e) => {
+        if (dragging && e.touches[0]) updateFromEvent(e.touches[0].clientX);
+      }, { passive: true });
+      window.addEventListener('touchend', () => {
+        dragging = false;
+      });
+    }
+
+    async function processImageFile(file) {
+      setProcessingLock(true);
+      ui.uploadZone.classList.add('hidden');
+      ui.studioWorkspace.classList.remove('hidden');
+      ui.studioWorkspace.classList.add('flex');
+      ui.videoViewport.classList.add('hidden');
+      ui.videoProgressCard.classList.add('hidden');
+      ui.imageViewport.classList.remove('hidden');
+      ui.downloadBtn.classList.add('hidden');
+
+      ui.metaFilename.textContent = file.name;
+      ui.metaResolution.textContent = 'Calculating...';
+      ui.metaPerf.textContent = 'Enhancing...';
+      ui.videoResultPlayer.pause();
+      ui.videoResultPlayer.removeAttribute('src');
+      ui.videoResultPlayer.load();
+
+      try {
+        const t0 = performance.now();
+        if (state.lastBitmap) state.lastBitmap.close();
+        const bitmap = await createImageBitmap(file);
+        state.lastBitmap = bitmap;
+
+        const srcW = Math.floor(bitmap.width);
+        const srcH = Math.floor(bitmap.height);
+        state.sourceAspectRatio = srcW / srcH;
+
+        const { outW, outH, needsDualPass } = computeTargetDimensions(srcW, srcH);
+        ui.metaResolution.textContent = `${srcW}×${srcH} → ${outW}×${outH}`;
+
+        ui.upscaledImageCanvas.width = outW;
+        ui.upscaledImageCanvas.height = outH;
+        drawImageBaseline(bitmap, outW, outH);
+        applyImageZoomMode();
+
+        await upscaleFrameToTarget(
+          bitmap,
+          srcW,
+          srcH,
+          ui.upscaledImageCanvas,
+          ui.modelSelect.value,
+          needsDualPass
+        );
+
+        setSliderPosition(50);
+
+        const elapsedMs = Math.round(performance.now() - t0);
+        ui.metaPerf.textContent = `Done in ${elapsedMs} ms`;
+
+        const outBlob = await new Promise((resolve) =>
+          ui.upscaledImageCanvas.toBlob(resolve, 'image/png')
+        );
+        const baseName = file.name.replace(/\.[^/.]+$/, '');
+        setDownloadArtifact(outBlob, `${baseName}_${outW}x${outH}.png`);
+      } catch (err) {
+        console.error(err);
+        showBanner('error', 'Image Upscaling Error', err.message || 'Failed to process image.');
+        ui.metaPerf.textContent = 'Failed';
+      } finally {
+        setProcessingLock(false);
+      }
+    }
+
+    // =========================================================================
+    // 5. VIDEO UPSCALING PIPELINE (WEBCODECS + MP4-MUXER)
+    // =========================================================================
+    async function processVideoFile(file) {
+      if (!('VideoEncoder' in window)) {
+        showBanner(
+          'error',
+          'WebCodecs Not Supported',
+          'Your browser does not support hardware VideoEncoder. Please use Chrome, Edge, or Opera.'
+        );
+        return;
+      }
+
+      state.cancelRequested = false;
+      setProcessingLock(true);
+      ui.uploadZone.classList.add('hidden');
+      ui.studioWorkspace.classList.remove('hidden');
+      ui.studioWorkspace.classList.add('flex');
+      ui.imageViewport.classList.add('hidden');
+      ui.videoViewport.classList.remove('hidden');
+      ui.videoProgressCard.classList.remove('hidden');
+      ui.videoResultPlayer.classList.add('hidden');
+      ui.videoLiveCanvas.classList.remove('hidden');
+      ui.downloadBtn.classList.add('hidden');
+
+      ui.metaFilename.textContent = file.name;
+      ui.metaPerf.textContent = 'Reading video...';
+      ui.progressBarFill.style.width = '0%';
+      ui.progressPercent.textContent = '0%';
+      ui.progressStatusText.textContent = 'Upscaling Frames...';
+      ui.videoStageBadge.textContent = 'Live Output';
+
+      const bitrate = parseInt(ui.bitrateSelect.value, 10) || 8_000_000;
+      const networkName = ui.modelSelect.value;
+
+      try {
+        const outBlob = await processVideoWithFallbackMuxer(file, bitrate, networkName);
+
+        if (state.cancelRequested) {
+          ui.metaPerf.textContent = 'Canceled';
+          ui.progressStatusText.textContent = 'Canceled';
+          return;
+        }
+
+        const baseName = file.name.replace(/\.[^/.]+$/, '');
+        const outW = ui.videoLiveCanvas.width;
+        const outH = ui.videoLiveCanvas.height;
+        setDownloadArtifact(outBlob, `${baseName}_${outW}x${outH}.mp4`);
+
+        ui.videoLiveCanvas.classList.add('hidden');
+        ui.videoResultPlayer.src = state.outputUrl;
+        ui.videoResultPlayer.classList.remove('hidden');
+        ui.videoStageBadge.textContent = `${outW}×${outH} MP4 Ready`;
+        ui.progressBarFill.style.width = '100%';
+        ui.progressPercent.textContent = '100%';
+        ui.progressStatusText.textContent = 'Complete';
+      } catch (err) {
+        console.error('Video processing failed:', err);
+        showBanner('error', 'Video Error', err.message || 'Unable to process video.');
+        ui.metaPerf.textContent = 'Failed';
+      } finally {
+        setProcessingLock(false);
+      }
+    }
+
+    async function processVideoWithFallbackMuxer(file, bitrate, networkName) {
+      const { Muxer, ArrayBufferTarget } = await import('https://esm.sh/mp4-muxer@5.1.3');
+
+      const videoUrl = URL.createObjectURL(file);
+      const probeEl = document.createElement('video');
+      probeEl.muted = true;
+      probeEl.playsInline = true;
+      probeEl.preload = 'auto';
+      probeEl.src = videoUrl;
+
+      await new Promise((resolve, reject) => {
+        if (probeEl.readyState >= 2) return resolve();
+        probeEl.onloadeddata = resolve;
+        probeEl.onerror = () => reject(new Error('Could not decode video. Try MP4 (H.264) or WebM.'));
+      });
+
+      const srcW = Math.floor(probeEl.videoWidth);
+      const srcH = Math.floor(probeEl.videoHeight);
+      state.sourceAspectRatio = srcW / srcH;
+
+      const { outW, outH, needsDualPass } = computeTargetDimensions(srcW, srcH);
+      const duration = Math.max(0.1, probeEl.duration || 2);
+      const fps = 30;
+      const totalFrames = Math.max(1, Math.round(duration * fps));
+
+      ui.metaResolution.textContent = `${srcW}×${srcH} → ${outW}×${outH}`;
+      ui.videoLiveCanvas.width = outW;
+      ui.videoLiveCanvas.height = outH;
+
+      const muxer = new Muxer({
+        target: new ArrayBufferTarget(),
+        video: { codec: 'avc', width: outW, height: outH },
+        fastStart: 'in-memory',
+        firstTimestampBehavior: 'offset',
+      });
+
+      const encoder = new VideoEncoder({
+        output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+        error: (e) => console.error('VideoEncoder error:', e),
+      });
+
+      const candidates =
+        outW * outH > 8_847_360
+          ? ['avc1.42003e', 'avc1.420034', 'avc1.64003e', 'avc1.640034']
+          : outW * outH > 2_073_600
+          ? ['avc1.420034', 'avc1.420033', 'avc1.640034', 'avc1.4d0034']
+          : ['avc1.420028', 'avc1.42001f', 'avc1.420034', 'avc1.4d0034'];
+
+      let selectedConfig = null;
+      for (const codec of candidates) {
+        const cfg = { codec, width: outW, height: outH, bitrate, framerate: fps, latencyMode: 'realtime' };
+        const support = await VideoEncoder.isConfigSupported(cfg);
+        if (support.supported) {
+          selectedConfig = support.config || cfg;
+          break;
+        }
+      }
+
+      if (!selectedConfig) {
+        URL.revokeObjectURL(videoUrl);
+        throw new Error(`Hardware encoder does not support ${outW}×${outH} H.264 output. Try a smaller target size.`);
+      }
+
+      encoder.configure(selectedConfig);
+
+      const t0 = performance.now();
+      const frameDurationUs = Math.round(1_000_000 / fps);
+
+      try {
+        for (let idx = 0; idx < totalFrames; idx++) {
+          if (state.cancelRequested) break;
+
+          const targetTime = Math.min(duration - 0.001, idx / fps);
+          if (Math.abs(probeEl.currentTime - targetTime) > 0.001) {
+            await new Promise((res) => {
+              probeEl.onseeked = res;
+              probeEl.currentTime = targetTime;
+            });
+          }
+
+          if (probeEl.readyState < 2) {
+            await new Promise((res) => {
+              probeEl.oncanplay = res;
+            });
+          }
+
+          const bitmap = await createImageBitmap(probeEl);
+          await upscaleFrameToTarget(
+            bitmap,
+            srcW,
+            srcH,
+            ui.videoLiveCanvas,
+            networkName,
+            needsDualPass
+          );
+          bitmap.close();
+
+          const outFrame = new VideoFrame(ui.videoLiveCanvas, {
+            timestamp: idx * frameDurationUs,
+            duration: frameDurationUs,
+          });
+
+          while (encoder.encodeQueueSize > 8) {
+            await new Promise((r) => setTimeout(r, 8));
+          }
+
+          encoder.encode(outFrame, { keyFrame: idx % 30 === 0 });
+          outFrame.close();
+
+          const pct = Math.min(99, Math.round(((idx + 1) / totalFrames) * 100));
+          const elapsedSec = Math.max(0.05, (performance.now() - t0) / 1000);
+          const currentFps = (idx + 1) / elapsedSec;
+          const remainingFrames = Math.max(0, totalFrames - (idx + 1));
+          const etaSec = Math.round(remainingFrames / Math.max(0.1, currentFps));
+
+          ui.progressBarFill.style.width = `${pct}%`;
+          ui.progressPercent.textContent = `${pct}%`;
+          ui.statFrames.textContent = `${idx + 1} / ${totalFrames}`;
+          ui.statFps.textContent = `${currentFps.toFixed(1)} fps`;
+          ui.statEta.textContent = `${etaSec}s`;
+          ui.metaPerf.textContent = `${currentFps.toFixed(1)} fps`;
+
+          await new Promise((r) => setTimeout(r, 0));
+        }
+
+        await encoder.flush();
+        encoder.close();
+        muxer.finalize();
+        return new Blob([muxer.target.buffer], { type: 'video/mp4' });
+      } finally {
+        URL.revokeObjectURL(videoUrl);
+      }
+    }
+
+    // =========================================================================
+    // 6. FILE SELECTION, DRAG-AND-DROP & INITIALIZATION
+    // =========================================================================
+    async function handleIncomingFile(file) {
+      if (!file) return;
+      state.currentFile = file;
+      ui.reprocessBtn.disabled = false;
+      ui.resetBtn.classList.remove('hidden');
+
+      if (file.type.startsWith('image/')) {
+        state.currentType = 'image';
+        await processImageFile(file);
+      } else if (file.type.startsWith('video/')) {
+        state.currentType = 'video';
+        await processVideoFile(file);
+      } else {
+        showBanner('error', 'Unsupported File', 'Please select a PNG, JPG, WebP image or MP4, WebM video.');
+      }
+    }
+
+    function resetWorkspace() {
+      if (state.isProcessing) return;
+      state.currentFile = null;
+      state.currentType = null;
+      if (state.lastBitmap) {
+        state.lastBitmap.close();
+        state.lastBitmap = null;
+      }
+      if (state.outputUrl) {
+        URL.revokeObjectURL(state.outputUrl);
+        state.outputUrl = null;
+      }
+      ui.videoResultPlayer.pause();
+      ui.videoResultPlayer.removeAttribute('src');
+      ui.videoResultPlayer.load();
+      ui.fileInput.value = '';
+      ui.reprocessBtn.disabled = true;
+      ui.resetBtn.classList.add('hidden');
+      ui.downloadBtn.classList.add('hidden');
+      ui.studioWorkspace.classList.add('hidden');
+      ui.studioWorkspace.classList.remove('flex');
+      ui.uploadZone.classList.remove('hidden');
+    }
+
+    ui.browseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      ui.fileInput.click();
+    });
+
+    ui.uploadZone.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      ui.fileInput.click();
+    });
+
+    ui.fileInput.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (file) handleIncomingFile(file);
+    });
+
+    ui.uploadZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      ui.uploadZone.classList.add('border-[#9E88C7]');
+    });
+
+    ui.uploadZone.addEventListener('dragleave', () => {
+      ui.uploadZone.classList.remove('border-[#9E88C7]');
+    });
+
+    ui.uploadZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      ui.uploadZone.classList.remove('border-[#9E88C7]');
+      const file = e.dataTransfer?.files?.[0];
+      if (file) handleIncomingFile(file);
+    });
+
+    ui.reprocessBtn.addEventListener('click', () => {
+      if (state.currentFile && !state.isProcessing) {
+        handleIncomingFile(state.currentFile);
+      }
+    });
+
+    ui.resetBtn.addEventListener('click', resetWorkspace);
+
+    initComparisonSlider();
+    initEngine();
+  </script>
+</body>
+</html>
